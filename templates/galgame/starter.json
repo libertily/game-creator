@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "name": "Galgame Starter",
+    "mode": "galgame",
+    "version": "0.1.0",
+    "description": "A basic visual novel template with a sample dialogue scene"
+  },
+  "assets": [],
+  "ui": {
+    "theme": {
+      "primary": "#cba6f7",
+      "secondary": "#a6e3a1",
+      "background": "#1e1e2e",
+      "surface": "#313244",
+      "text": "#cdd6f4",
+      "textMuted": "#6c7086",
+      "accent": "#f5c2e7",
+      "danger": "#f38ba8"
+    },
+    "rpgHUD": {
+      "showHealth": true,
+      "showMana": true,
+      "showMinimap": true,
+      "showInventory": true,
+      "components": []
+    },
+    "dialogueBox": {
+      "position": "bottom",
+      "backgroundStyle": "solid",
+      "backgroundColor": "#000000cc",
+      "borderRadius": 12,
+      "fontSize": 20,
+      "textColor": "#ffffff",
+      "nameBoxColor": "#cba6f7",
+      "typewriterSpeed": 25
+    },
+    "menu": {
+      "titleScreen": { "backgroundId": "", "buttons": [] },
+      "saveLoadScreen": { "backgroundId": "", "buttons": [] },
+      "settingsScreen": { "backgroundId": "", "buttons": [] }
+    },
+    "fontFamily": "serif"
+  },
+  "rpg": null,
+  "galgame": {
+    "scenes": [
+      {
+        "id": "scene-1",
+        "name": "Classroom",
+        "backgroundId": "",
+        "bgmId": null,
+        "transition": "fade"
+      }
+    ],
+    "dialogueNodes": [
+      {
+        "id": "node-1",
+        "speakerName": "Narrator",
+        "speakerPortraitId": "",
+        "portraitExpression": "neutral",
+        "text": "Welcome! This is the start of your visual novel.",
+        "nextNodeId": "node-2",
+        "effects": ["fadeIn"]
+      },
+      {
+        "id": "node-2",
+        "speakerName": "Hero",
+        "speakerPortraitId": "",
+        "portraitExpression": "happy",
+        "text": "I'm ready to begin the adventure!",
+        "nextNodeId": "branch-1",
+        "effects": []
+      }
+    ],
+    "branchNodes": [
+      {
+        "id": "branch-1",
+        "prompt": "What should I do?",
+        "choices": [
+          { "text": "Explore the world", "nextNodeId": "node-3" },
+          { "text": "Stay here", "nextNodeId": "node-4" }
+        ]
+      }
+    ],
+    "variables": {},
+    "startSceneId": "scene-1",
+    "startNodeId": "node-1"
+  }
+}
