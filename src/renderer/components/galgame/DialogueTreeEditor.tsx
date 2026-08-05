@@ -150,7 +150,7 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
             })
             if (closest && minDist < 20000) onNodeSceneBind(closest, sceneId)
           }}
-        ><ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChangeRF} onEdgesChange={onEdgesChangeRF} onConnect={onConnect} onNodeClick={(_,n)=>setSelId(n.id)} onInit={(inst) => { rfRef.current = inst }} nodeTypes={nodeTypes} nodesDraggable fitView className="bg-[#12121e]"><Controls className="!bg-editor-surface !border-editor-border !rounded-lg"/><Background color="#ffffff08" gap={20}/><MiniMap style={{background:'#1e1e2e'}} nodeColor={n=>n.type==='branch'?'#f5c2e7':'#a6e3a1'} maskColor="rgba(0,0,0,0.6)"/></ReactFlow></div>
+        ><ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChangeRF} onEdgesChange={onEdgesChangeRF} onConnect={onConnect} onNodeClick={(_,n)=>setSelId(n.id)} onInit={(inst) => { rfRef.current = inst }} nodeTypes={nodeTypes} nodesDraggable fitView className="bg-[#12121e]" proOptions={{ hideAttribution: true }}><Controls className="!bg-editor-surface !border-editor-border !rounded-lg"/><Background color="#ffffff08" gap={20}/><MiniMap style={{background:'#1e1e2e'}} nodeColor={n=>n.type==='branch'?'#f5c2e7':'#a6e3a1'} maskColor="rgba(0,0,0,0.6)"/></ReactFlow></div>
         <div className="relative shrink-0 overflow-hidden border-l border-editor-border bg-editor-surface" style={{ width: propsCollapsed ? 28 : panel.w }}>
           {!propsCollapsed && <div className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-accent/50 z-10 transition-colors" onMouseDown={panel.onDown} />}
           {!propsCollapsed && <button onClick={() => setPropsCollapsed(true)}
