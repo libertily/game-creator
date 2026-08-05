@@ -172,7 +172,7 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
                 </p>
               </div>
               {s.id===startSceneId&&<span className="text-[10px] text-accent-alt shrink-0">⭐</span>}
-              <button onClick={ev=>{ev.stopPropagation(); setPreviewScene(s)}} className="p-0.5 rounded text-editor-muted hover:text-accent shrink-0" title="预览这一幕"><Eye size={12}/></button>
+              <button onClick={ev=>{ev.stopPropagation(); setPreviewScene(s)}} className="p-1 rounded text-accent-alt hover:bg-accent-alt/15 shrink-0" title="预览这一幕"><Eye size={13}/></button>
               <button onClick={ev=>{ev.stopPropagation();del(s.id)}} className="p-0.5 rounded text-red-400 hover:bg-red-400/10 shrink-0"><Trash2 size={12}/></button>
             </div>
           )
@@ -184,7 +184,10 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
       {sel && (
         <div className="border-t border-editor-border p-3 space-y-2 overflow-y-auto shrink-0" style={{ maxHeight: '55%' }}>
           {/* 基本信息 */}
-          <div className="flex items-center gap-1"><Image size={10} className="text-accent-alt"/><label className="text-[9px] font-semibold text-editor-muted uppercase tracking-wider">基本信息</label></div>
+          <div className="flex items-center gap-1"><Image size={10} className="text-accent-alt"/><label className="text-[9px] font-semibold text-editor-muted uppercase tracking-wider">基本信息</label>
+            <div className="flex-1"/>
+            <button onClick={()=>setPreviewScene(sel)} className="flex items-center gap-0.5 text-[9px] text-accent-alt hover:underline px-1.5 py-0.5 rounded hover:bg-accent-alt/10"><Eye size={12}/> 预览这一幕</button>
+          </div>
           <div><label className="text-[9px] text-editor-muted block mb-0.5">{t.rpg.name}</label><input type="text" value={sel.name} onChange={e=>upd(sel.id,{name:e.target.value})} className={inp}/></div>
 
           {/* 背景 */}

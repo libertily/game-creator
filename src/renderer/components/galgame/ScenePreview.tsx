@@ -71,9 +71,9 @@ const ScenePreview: React.FC<Props> = ({ scene, characters, onClose, onCharConfi
             return (
               <div key={ch.id}
                 className="absolute cursor-move"
-                style={{ left: `calc(${baseLeft}% + ${ox}%)`, bottom: `calc(${BOTTOM_ANCHOR}% - ${oy}%)`, transform: `translateX(${shift}%)` }}
+                style={{ left: `calc(${baseLeft}% + ${ox}%)`, bottom: `calc(${BOTTOM_ANCHOR}% - ${oy}%)`, width: `${scale*100}%`, transform: `translateX(${shift}%)` }}
                 onMouseDown={e => onDragStart(e, ch)}>
-                <img src={ch.portraitPath} className="object-contain pointer-events-none" style={{ width: `${scale*100}%` }} alt="" draggable={false}/>
+                <img src={ch.portraitPath} className="w-full h-auto object-contain pointer-events-none" alt="" draggable={false}/>
                 <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] bg-black/60 text-white rounded px-1 whitespace-nowrap pointer-events-none">{ch.name}</span>
               </div>
             )

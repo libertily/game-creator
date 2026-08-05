@@ -229,9 +229,10 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
                               const baseLeft = pos === 'left' ? 0 : pos === 'right' ? 100 : 50
                               const shift = pos === 'left' ? 0 : pos === 'right' ? -100 : -50
                               return (
+                                // width % is set on the wrapper (relative to the stage) so the image size stays fixed
                                 <div className="absolute pointer-events-none"
-                                  style={{ left: `calc(${baseLeft}% + ${ox}%)`, bottom: `calc(31.7% - ${oy}%)`, transform: `translateX(${shift}%)` }}>
-                                  <img src={path} className="object-contain" style={{ width: `${scale*100}%` }} alt=""/>
+                                  style={{ left: `calc(${baseLeft}% + ${ox}%)`, bottom: `calc(31.7% - ${oy}%)`, width: `${scale*100}%`, transform: `translateX(${shift}%)` }}>
+                                  <img src={path} className="w-full h-auto object-contain" alt=""/>
                                 </div>
                               )
                             })()}
