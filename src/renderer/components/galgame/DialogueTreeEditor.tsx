@@ -4,8 +4,9 @@ import { NodeResizer } from '@reactflow/node-resizer'
 import '@reactflow/node-resizer/dist/style.css'
 import 'reactflow/dist/style.css'
 import { useT } from '../../i18n'
-import type { DialogueNode, BranchNode, ChoiceOption, SceneDef, CharacterDef } from '@shared/models/project'
-import { MessageCircle, GitBranch, Plus, Trash2, MapPin, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import type { DialogueNode, BranchNode, ChoiceOption, SceneDef, CharacterDef, CharacterImageConfig } from '@shared/models/project'
+import { MessageCircle, GitBranch, Plus, Trash2, MapPin, PanelRightClose, PanelRightOpen, Eye } from 'lucide-react'
+import ScenePreview from './ScenePreview'
 
 const DNode: React.FC<NodeProps> = ({ data, selected }) => (
   <div className={`px-3 py-2 rounded-lg border-2 ${selected?'border-accent bg-editor-surface':'border-editor-border bg-editor-bg'}`} style={{ minWidth: 160, minHeight: 60 }}>
@@ -45,12 +46,24 @@ function useResizePanel(initial: number) {
 
 const nodeTypes = { dialogue: DNode, branch: BNode }
 
-interface Props { dialogueNodes: DialogueNode[]; branchNodes: BranchNode[]; startNodeId: string; scenes: SceneDef[]; characters: CharacterDef[]; onNodesChange: (d: DialogueNode[], b: BranchNode[]) => void; onStartNodeChange: (id: string) => void; onNodeSceneBind?: (nodeId: string, sceneId: string) => void }
+interface Props { dialogueNodes: DialogueNode[]; branchNodes: BranchNode[]; startNodeId: string; scenes: SceneDef[]; characters: CharacterDef[]; onNodesChange: (d: DialogueNode[], b: BranchNode[]) => void; onStartNodeChange: (id: string) => void; onNodeSceneBind?: (nodeId: string, sceneId: string) => void; onCharactersChange?: (c: CharacterDef[]) => void }
 
-const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, startNodeId, scenes, characters, onNodesChange, onStartNodeChange, onNodeSceneBind }) => {
+const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, startNodeId, scenes, characters, onNodesChange, onStartNodeChange, onNodeSceneBind, onCharactersChange }) => {
   const t = useT()
   const rfRef = useRef<ReactFlowInstance | null>(null)
   const panel = useResizePanel(260)
+  const [previewNode, setPreviewNode] = useState<DialogueNode | null>(null)
+
+  const updateCharConfig = (charId: string, key: string, patch: Partial<CharacterImageConfig>) => {
+    if (!onCharactersChange) return
+    onCharactersChange(characters.map(ch => {
+      if (ch.id !== charId) return ch
+      const legacy = { position: ch.position, scale: ch.scale, offsetX: ch.offsetX, offsetY: ch.offsetY }
+      const per = (ch.imageConfigs || {})[key] || {}
+      const cur = { position: per.position ?? legacy.position ?? 'center', scale: per.scale ?? legacy.scale ?? 0.33, offsetX: per.offsetX ?? legacy.offsetX ?? 0, offsetY: per.offsetY ?? legacy.offsetY ?? 0 }
+      return { ...ch, imageConfigs: { ...(ch.imageConfigs || {}), [key]: { ...cur, ...patch } } }
+    }))
+  }
 
   // get effective scene ID for a node (direct field + reverse lookup from scene.dialogueNodeIds)
   const getEffectiveSceneId = useCallback((nodeId: string) => {
@@ -178,7 +191,10 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
 
               {/* Display characters (independent of speaker, multiple allowed) */}
               <div className="p-2 bg-editor-bg rounded border border-editor-border/50 space-y-1.5">
-                <div className="flex items-center gap-1"><MessageCircle size={12} className="text-accent-alt"/><span className="text-[10px] font-semibold text-editor-muted uppercase">显示角色</span></div>
+                <div className="flex items-center gap-1"><MessageCircle size={12} className="text-accent-alt"/><span className="text-[10px] font-semibold text-editor-muted uppercase">显示角色</span>
+                  <div className="flex-1"/>
+                  <button onClick={()=>setPreviewNode(sd)} className="flex items-center gap-0.5 text-[9px] text-accent-alt hover:underline px-1 py-0.5 rounded hover:bg-accent-alt/10"><Eye size={12}/> 渲染预览</button>
+                </div>
                 <div className="flex items-center gap-2">
                   {/* Preview: non-overlapping avatars of displayed characters */}
                   <div className="w-12 h-14 rounded bg-editor-bg border border-editor-border overflow-hidden shrink-0 relative">
@@ -192,7 +208,7 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
                             const ch = characters.find(c => c.id === cid)
                             const src = ch?.expressions?.[(sd.displayCharacterExpressions||{})[cid]] || ch?.portraitPath || ''
                             return src
-                              ? <img key={cid} src={src} className="flex-1 h-full object-cover rounded-sm border border-editor-border/40" alt=""/>
+                              ? <img key={cid} src={src} className="flex-1 h-full object-contain rounded-sm border border-editor-border/40" alt=""/>
                               : <div key={cid} className="flex-1 h-full rounded-sm bg-editor-border/30"/>
                           })}
                           {ids.length > 2 && <span className="absolute bottom-0.5 right-0.5 text-[7px] bg-black/60 text-white rounded px-0.5 leading-tight">+{ids.length-2}</span>}
@@ -292,6 +308,15 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
             </div>
           </div>) : (<div className="p-3 text-center text-editor-muted py-8"><GitBranch size={24} className="mx-auto mb-1 opacity-50"/><p className="text-[11px]">{t.galgame.selectNode}</p><p className="text-[10px] mt-1 opacity-60">{dialogueNodes.length+branchNodes.length} {t.galgame.nodes}</p></div>)}</div>)}
       </div>
+      {previewNode && (
+        <ScenePreview
+          scene={effectiveScene || null}
+          node={previewNode}
+          characters={characters}
+          onClose={() => setPreviewNode(null)}
+          onCharConfig={updateCharConfig}
+        />
+      )}
     </div>
   </div>
   )

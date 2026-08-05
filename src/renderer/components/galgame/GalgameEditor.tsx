@@ -96,6 +96,7 @@ const GalgameEditor: React.FC = () => {
           dialogueNodes={gd.dialogueNodes} branchNodes={gd.branchNodes} startNodeId={gd.startNodeId} scenes={gd.scenes} characters={gd.characters || []}
           onNodesChange={(d, b) => updateStore({ dialogueNodes: d, branchNodes: b })}
           onStartNodeChange={(id) => updateStore({ startNodeId: id })}
+          onCharactersChange={(c) => updateStore({ characters: c })}
           onNodeSceneBind={(nodeId, sceneId) => {
             const newScenes = gd.scenes.map(s => {
               const ids = s.dialogueNodeIds || []
