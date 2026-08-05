@@ -118,6 +118,7 @@ class GalgameEngine:
                 "portrait": portrait, "expressions": expr,
                 "position": ch.get("position","center"),
                 "scale": ch.get("scale", 0.33), "offsetX": ch.get("offsetX", 0), "offsetY": ch.get("offsetY", 0),
+                "image_configs": ch.get("imageConfigs", {}) or {},
             }
         self.variables = gal.get("variables", {})
         self.current_scene_id = gal.get("startSceneId", "")
@@ -134,29 +135,45 @@ class GalgameEngine:
                 return ch["id"]
         return None
 
+    def _char_effective_config(self, ch: dict, expr_name: str = "") -> dict:
+        """Merge legacy character-level position with per-image config (key '' = default portrait)."""
+        cfg = {
+            "id": ch["id"], "name": ch["name"],
+            "position": ch.get("position", "center"),
+            "scale": ch.get("scale", 0.33),
+            "offsetX": ch.get("offsetX", 0), "offsetY": ch.get("offsetY", 0),
+        }
+        per = (ch.get("image_configs") or {}).get(expr_name or "", {}) or {}
+        if "position" in per: cfg["position"] = per["position"]
+        if "scale" in per: cfg["scale"] = per["scale"]
+        if "offsetX" in per: cfg["offsetX"] = per["offsetX"]
+        if "offsetY" in per: cfg["offsetY"] = per["offsetY"]
+        return cfg
+
     def _load_scene_chars(self, scene_id: str):
-        """Put every character bound to a scene on stage (default portraits)."""
+        """Put every character bound to a scene on stage (default portraits, per-image config)."""
         self.onstage = []
         scene = self.scenes.get(scene_id)
         for cid in (scene.character_ids if scene else []):
             ch = self.characters.get(cid)
-            if ch: self.onstage.append({"char_id": cid, "cfg": ch, "surf": ch["portrait"]})
+            if ch: self.onstage.append({"char_id": cid, "cfg": self._char_effective_config(ch, ""), "surf": ch["portrait"]})
 
     def _set_display_char(self, char_id: Optional[str], expr_name: str = ""):
-        """Bring a character on stage (or update its portrait/expression)."""
+        """Bring a character on stage (or update its portrait/expression + per-image config)."""
         if not char_id: return
         ch = self.characters.get(char_id)
         if not ch: return
         surf = ch["portrait"]
         if expr_name and ch.get("expressions", {}).get(expr_name):
             surf = self._load_image(ch["expressions"][expr_name])
+        cfg = self._char_effective_config(ch, expr_name)
         for e in self.onstage:
             if e["char_id"] == char_id:
-                e["surf"] = surf; e["cfg"] = ch
-                self.current_char_cfg = ch; self.current_portrait = surf
+                e["surf"] = surf; e["cfg"] = cfg
+                self.current_char_cfg = cfg; self.current_portrait = surf
                 return
-        self.onstage.append({"char_id": char_id, "cfg": ch, "surf": surf})
-        self.current_char_cfg = ch; self.current_portrait = surf
+        self.onstage.append({"char_id": char_id, "cfg": cfg, "surf": surf})
+        self.current_char_cfg = cfg; self.current_portrait = surf
 
     def _start_node(self, nid: str):
         self.current_node_id = nid; self.showing_choices = False; self.selected_choice = 0

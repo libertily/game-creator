@@ -108,15 +108,23 @@ export interface SceneDef {
   characterIds?: string[]             // characters appearing in this scene
 }
 
+export interface CharacterImageConfig {
+  position?: 'left' | 'center' | 'right'  // screen position
+  scale?: number                     // display scale (0.1-1.0), default 0.33
+  offsetX?: number                   // fine position offset (% of screen width, -50..50)
+  offsetY?: number                   // fine position offset (% of screen height, -50..50)
+}
+
 export interface CharacterDef {
   id: string
   name: string
   portraitPath: string               // default portrait (data URL or path)
   expressions: Record<string, string> // expression name → portrait path
-  position?: 'left' | 'center' | 'right'  // screen position
-  scale?: number                     // portrait display scale (0.1-1.0), default 0.33
-  offsetX?: number                   // fine position offset (% of screen width, -50..50)
-  offsetY?: number                   // fine position offset (% of screen height, -50..50)
+  position?: 'left' | 'center' | 'right'  // legacy: screen position (default portrait)
+  scale?: number                     // legacy: portrait display scale (default 0.33)
+  offsetX?: number                   // legacy: fine position offset
+  offsetY?: number                   // legacy: fine position offset
+  imageConfigs?: Record<string, CharacterImageConfig>  // per-image config, key '' = default portrait, others = expression name
 }
 
 export interface GalgameData {

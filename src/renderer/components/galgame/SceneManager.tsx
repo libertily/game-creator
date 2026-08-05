@@ -179,10 +179,12 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
       </div>
       {sel && (
         <div className="border-t border-editor-border p-3 space-y-2 overflow-y-auto shrink-0" style={{ maxHeight: '55%' }}>
-          <h4 className="text-[10px] font-semibold text-editor-muted uppercase tracking-wider">{t.rpg.properties}</h4>
-
+          {/* 基本信息 */}
+          <div className="flex items-center gap-1"><Image size={10} className="text-accent-alt"/><label className="text-[9px] font-semibold text-editor-muted uppercase tracking-wider">基本信息</label></div>
           <div><label className="text-[9px] text-editor-muted block mb-0.5">{t.rpg.name}</label><input type="text" value={sel.name} onChange={e=>upd(sel.id,{name:e.target.value})} className={inp}/></div>
 
+          {/* 背景 */}
+          <div className="flex items-center gap-1 border-t border-editor-border pt-2"><Image size={10} className="text-accent-alt"/><label className="text-[9px] font-semibold text-editor-muted uppercase tracking-wider">背景</label></div>
           <div>
             <label className="text-[9px] text-editor-muted block mb-0.5">{t.galgame.backgroundType || '背景类型'}</label>
             <div className="flex gap-1">
@@ -198,6 +200,8 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
           <FilePicker label={t.galgame.bgm} value={sel.bgmPath||''} accept="audio/*"
             icon={<Music size={12} className="text-editor-muted"/>} onChange={v=>upd(sel.id,{bgmPath:v||null})} placeholder="选择音频文件..." />
 
+          {/* 过渡 */}
+          <div className="flex items-center gap-1 border-t border-editor-border pt-2"><Image size={10} className="text-accent-alt"/><label className="text-[9px] font-semibold text-editor-muted uppercase tracking-wider">过渡</label></div>
           <div>
             <label className="text-[9px] text-editor-muted block mb-0.5">{t.galgame.transitionPreset || '过渡预设'}</label>
             <select value={sel.transition||'fade'} onChange={e=>upd(sel.id,{transition:e.target.value})} className={inp}>
@@ -210,6 +214,8 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
             <input type="text" value={sel.customTransition||''} onChange={e=>upd(sel.id,{customTransition:e.target.value})} placeholder="如: ripple, pixelate..." className={inp}/>
           </div>
 
+          {/* 联动 */}
+          <div className="flex items-center gap-1 border-t border-editor-border pt-2"><Link2 size={10} className="text-accent-alt"/><label className="text-[9px] font-semibold text-editor-muted uppercase tracking-wider">场景联动</label></div>
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[9px] text-editor-muted">{t.galgame.boundNodes || '绑定节点'} ({boundIds.length})</label>

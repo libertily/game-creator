@@ -57,6 +57,8 @@ const GalgameEditor: React.FC = () => {
   const [panelHidden, setPanelHidden] = useState(false)
   const panelW = usePanelResize(224)
   const sceneH = useVSplit(300)
+  // 'both' = split view, 'scene' = only scenes, 'char' = only characters
+  const [rightView, setRightView] = useState<'both' | 'scene' | 'char'>('both')
 
   if (!project?.galgame) {
     return (
@@ -126,24 +128,44 @@ const GalgameEditor: React.FC = () => {
             title="折叠面板">
             <PanelRightClose size={10}/>
           </button>
-          <SceneManager scenes={gd.scenes} startSceneId={gd.startSceneId}
-            dialogueNodes={gd.dialogueNodes} branchNodes={gd.branchNodes} characters={gd.characters || []}
-            onScenesChange={(s) => updateStore({ scenes: s })}
-            onStartSceneChange={(id) => updateStore({ startSceneId: id })}
-            onSceneCharBind={handleSceneCharBind}
-            height={sceneH.collapsed ? undefined : sceneH.h}
-            collapsed={sceneH.collapsed}
-            onCollapseChange={sceneH.setCollapsed}
-            onExpand={sceneH.expand}
-            flexHeight={false} />
-          {/* Vertical drag handle between scenes and characters */}
-          <div className="h-2 shrink-0 cursor-row-resize hover:bg-accent/40 transition-colors flex items-center justify-center border-t border-editor-border bg-editor-surface"
-            onMouseDown={sceneH.onDown} title="拖拽调整高度">
-            <div className="w-8 h-0.5 rounded bg-editor-border"/>
+          {/* View mode: show scenes / characters / both */}
+          <div className="flex items-center gap-0.5 px-6 pt-1 pb-1 border-b border-editor-border shrink-0">
+            {([['scene', '场景'], ['both', '全部'], ['char', '角色']] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setRightView(k)}
+                className={`flex-1 py-0.5 text-[9px] rounded border ${rightView===k?'bg-accent/15 border-accent text-accent':'border-editor-border text-editor-muted hover:border-accent/30'}`}>
+                {label}
+              </button>
+            ))}
           </div>
-          <CharacterManager characters={gd.characters || []} scenes={gd.scenes}
-            onCharactersChange={(c) => updateStore({ characters: c })}
-            onSceneCharBind={handleSceneCharBind} />
+
+          {rightView !== 'char' && (
+            <SceneManager scenes={gd.scenes} startSceneId={gd.startSceneId}
+              dialogueNodes={gd.dialogueNodes} branchNodes={gd.branchNodes} characters={gd.characters || []}
+              onScenesChange={(s) => updateStore({ scenes: s })}
+              onStartSceneChange={(id) => updateStore({ startSceneId: id })}
+              onSceneCharBind={handleSceneCharBind}
+              height={rightView === 'both' ? (sceneH.collapsed ? undefined : sceneH.h) : undefined}
+              collapsed={rightView === 'both' ? sceneH.collapsed : false}
+              onCollapseChange={rightView === 'both' ? sceneH.setCollapsed : undefined}
+              onExpand={rightView === 'both' ? sceneH.expand : undefined}
+              flexHeight={rightView !== 'both'} />
+          )}
+
+          {rightView === 'both' && (
+            <>
+              {/* Vertical drag handle between scenes and characters */}
+              <div className="h-2 shrink-0 cursor-row-resize hover:bg-accent/40 transition-colors flex items-center justify-center border-t border-editor-border bg-editor-surface"
+                onMouseDown={sceneH.onDown} title="拖拽调整高度">
+                <div className="w-8 h-0.5 rounded bg-editor-border"/>
+              </div>
+            </>
+          )}
+
+          {rightView !== 'scene' && (
+            <CharacterManager characters={gd.characters || []} scenes={gd.scenes}
+              onCharactersChange={(c) => updateStore({ characters: c })}
+              onSceneCharBind={handleSceneCharBind} />
+          )}
         </div>
       )}
     </div>
