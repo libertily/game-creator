@@ -37,10 +37,10 @@ def get_font(size: int):
 # ── Data Classes ─────────────────────────────────────────
 
 @dataclass
-class SceneState: id: str; background: Optional[pygame.Surface] = None
+class SceneState: id: str; background: Optional[pygame.Surface] = None; character_ids: list = field(default_factory=list)
 
 @dataclass
-class DialogueNode: id: str; speaker: str; text: str; next_node_id: Optional[str] = None; change_scene_id: str = ""
+class DialogueNode: id: str; speaker: str; text: str; next_node_id: Optional[str] = None; change_scene_id: str = ""; display_character_id: str = ""; portrait_expression: str = ""
 
 @dataclass
 class BranchNode: id: str; prompt: str; choices: list = field(default_factory=list)
@@ -58,16 +58,34 @@ class GalgameEngine:
         self.scenes: dict[str, SceneState] = {}
         self.dialogue_nodes: dict[str, DialogueNode] = {}
         self.branch_nodes: dict[str, BranchNode] = {}
+        self.characters: dict[str, dict] = {}
         self.variables: dict[str, int] = {}
         self.current_scene_id = self.current_node_id = ""
         self.current_text = ""; self.text_idx = 0; self.text_timer = 0.0
         self.text_complete = False; self.showing_choices = False; self.selected_choice = 0
+        self.current_portrait: Optional[pygame.Surface] = None
+        self.current_char_cfg: Optional[dict] = None
+        # multiple characters on stage (each: {char_id, cfg, surf})
+        self.onstage: list[dict] = []
+
+    def _load_image(self, path: str) -> Optional[pygame.Surface]:
+        """Load an image from base64 data URL or file path."""
+        if not path: return None
+        try:
+            if path.startswith("data:image"):
+                header, encoded = path.split(",", 1)
+                img = pygame.image.load(io.BytesIO(base64.b64decode(encoded))).convert_alpha()
+            else:
+                img = pygame.image.load(path).convert_alpha()
+            return img
+        except Exception:
+            return None
 
     def load_from_project(self, project_data: dict):
         gal = project_data.get("galgame", {})
         if not gal: return
         for sd in gal.get("scenes", []):
-            scene = SceneState(id=sd["id"])
+            scene = SceneState(id=sd["id"], character_ids=list(sd.get("characterIds", []) or []))
             # try loading background from base64 data URL
             bg_path = sd.get("backgroundPath", "")
             if bg_path and bg_path.startswith("data:image"):
@@ -84,19 +102,75 @@ class GalgameEngine:
             self.dialogue_nodes[dn["id"]] = DialogueNode(
                 id=dn["id"], speaker=dn.get("speakerName",""), text=dn.get("text",""),
                 next_node_id=dn.get("nextNodeId"),
-                change_scene_id=dn.get("changeSceneId", ""))
+                change_scene_id=dn.get("changeSceneId", ""),
+                display_character_id=dn.get("displayCharacterId", ""),
+                portrait_expression=dn.get("portraitExpression", ""))
         for bn in gal.get("branchNodes", []):
             self.branch_nodes[bn["id"]] = BranchNode(id=bn["id"], prompt=bn.get("prompt",""), choices=bn.get("choices",[]))
+        # load characters with portrait + position + scale
+        for ch in gal.get("characters", []):
+            expr = ch.get("expressions", {}) or {}
+            portrait = self._load_image(ch.get("portraitPath","") or "")
+            self.characters[ch["id"]] = {
+                "id": ch["id"], "name": ch.get("name",""),
+                "portrait": portrait, "expressions": expr,
+                "position": ch.get("position","center"),
+                "scale": ch.get("scale", 0.33), "offsetX": ch.get("offsetX", 0), "offsetY": ch.get("offsetY", 0),
+            }
         self.variables = gal.get("variables", {})
         self.current_scene_id = gal.get("startSceneId", "")
         self.current_node_id = gal.get("startNodeId", "")
+        # load all characters bound to the starting scene
+        self._load_scene_chars(self.current_scene_id)
         self._start_node(self.current_node_id)
+
+    def _resolve_char_id(self, speaker: str) -> Optional[str]:
+        """Find a character id by name or id (match by name or id)."""
+        if not speaker or speaker in ("旁白","Narrator","?"): return None
+        for ch in self.characters.values():
+            if ch["name"] == speaker or speaker == ch["id"]:
+                return ch["id"]
+        return None
+
+    def _load_scene_chars(self, scene_id: str):
+        """Put every character bound to a scene on stage (default portraits)."""
+        self.onstage = []
+        scene = self.scenes.get(scene_id)
+        for cid in (scene.character_ids if scene else []):
+            ch = self.characters.get(cid)
+            if ch: self.onstage.append({"char_id": cid, "cfg": ch, "surf": ch["portrait"]})
+
+    def _set_display_char(self, char_id: Optional[str], expr_name: str = ""):
+        """Bring a character on stage (or update its portrait/expression)."""
+        if not char_id: return
+        ch = self.characters.get(char_id)
+        if not ch: return
+        surf = ch["portrait"]
+        if expr_name and ch.get("expressions", {}).get(expr_name):
+            surf = self._load_image(ch["expressions"][expr_name])
+        for e in self.onstage:
+            if e["char_id"] == char_id:
+                e["surf"] = surf; e["cfg"] = ch
+                self.current_char_cfg = ch; self.current_portrait = surf
+                return
+        self.onstage.append({"char_id": char_id, "cfg": ch, "surf": surf})
+        self.current_char_cfg = ch; self.current_portrait = surf
 
     def _start_node(self, nid: str):
         self.current_node_id = nid; self.showing_choices = False; self.selected_choice = 0
         if nid in self.dialogue_nodes:
             dn = self.dialogue_nodes[nid]; self.current_text = dn.text
             self.text_idx = 0; self.text_timer = 0.0; self.text_complete = False
+            # scene change → load all characters bound to the scene
+            if dn.change_scene_id and dn.change_scene_id in self.scenes:
+                self.current_scene_id = dn.change_scene_id
+                self._load_scene_chars(self.current_scene_id)
+            # display character takes priority over speaker; other scene chars remain
+            disp_id = dn.display_character_id
+            if disp_id and disp_id in self.characters:
+                self._set_display_char(disp_id, dn.portrait_expression)
+            else:
+                self._set_display_char(self._resolve_char_id(dn.speaker))
         elif nid in self.branch_nodes:
             self.showing_choices = True; self.current_text = self.branch_nodes[nid].prompt
             self.text_idx = len(self.current_text); self.text_complete = True
@@ -162,6 +236,28 @@ class GalgameEngine:
                 if scene: scene_name = scene.id
                 ph = font_s.render(f"[{scene_name}]", True, (100,100,120))
                 self.screen.blit(ph, (self.sw//2 - ph.get_width()//2, self.sh//2 - 60))
+
+        # Character portraits (a scene can show multiple characters at once)
+        for entry in self.onstage:
+            if not entry["surf"]: continue
+            cfg = entry["cfg"]
+            surf = entry["surf"]
+            # scale relative to screen width (default 1/3 of image width)
+            scale = cfg.get("scale", 0.33) or 0.33
+            pw = int(self.sw * scale); ph_ = int(pw * surf.get_height() / max(1, surf.get_width()))
+            try:
+                s = pygame.transform.smoothscale(surf, (pw, ph_))
+            except Exception:
+                s = pygame.transform.scale(surf, (pw, ph_))
+            # base x by position
+            pos = cfg.get("position", "center")
+            if pos == "left": base_x = 0
+            elif pos == "right": base_x = self.sw - pw
+            else: base_x = (self.sw - pw) // 2
+            ox = int((cfg.get("offsetX", 0) or 0) * self.sw / 100)
+            oy = int((cfg.get("offsetY", 0) or 0) * self.sh / 100)
+            base_y = self.sh - ph_ - DIALOGUE_BOX_HEIGHT - DIALOGUE_BOX_MARGIN - 10
+            self.screen.blit(s, (base_x + ox, base_y + oy))
 
         # Speaker name
         dn = self.dialogue_nodes.get(self.current_node_id)

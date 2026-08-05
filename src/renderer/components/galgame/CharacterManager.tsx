@@ -14,7 +14,10 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
   const t = useT()
   const [selId, setSelId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(false)
+  const [newExprName, setNewExprName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const exprInputRef = useRef<HTMLInputElement>(null)
+  const pendingExprRef = useRef<string>('')
   const sel = characters.find(c => c.id === selId)
 
   const add = () => {
@@ -33,24 +36,33 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
     e.target.value = ''
   }, [sel])
 
+  // add a new expression slot by name
   const addExpr = () => {
-    if (!sel) return
-    const name = prompt('表情名称 (如 happy, sad):')
-    if (!name) return
+    if (!sel || !newExprName.trim()) return
+    const name = newExprName.trim()
+    if (name in sel.expressions) { setNewExprName(''); return }
     upd(sel.id, { expressions: { ...sel.expressions, [name]: '' } })
+    setNewExprName('')
   }
-  const setExprPortrait = (exprName: string) => {
+
+  // open file picker for a specific expression
+  const pickExprPortrait = (exprName: string) => {
     if (!sel) return
-    const f = document.createElement('input')
-    f.type = 'file'; f.accept = 'image/*'
-    f.onchange = () => {
-      const file = f.files?.[0]; if (!file) return
-      const reader = new FileReader()
-      reader.onload = () => upd(sel.id, { expressions: { ...sel.expressions, [exprName]: reader.result as string } })
-      reader.readAsDataURL(file)
-    }
-    f.click()
+    pendingExprRef.current = exprName
+    exprInputRef.current?.click()
   }
+
+  // handle expression image file
+  const handleExprFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; const exprName = pendingExprRef.current
+    pendingExprRef.current = ''
+    if (!f || !sel || !exprName) { e.target.value = ''; return }
+    const reader = new FileReader()
+    reader.onload = () => upd(sel.id, { expressions: { ...sel.expressions, [exprName]: reader.result as string } })
+    reader.readAsDataURL(f)
+    e.target.value = ''
+  }, [sel])
+
   const delExpr = (exprName: string) => {
     if (!sel) return
     const { [exprName]: _, ...rest } = sel.expressions
@@ -60,7 +72,7 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
   const inp = "w-full px-2 py-1 bg-editor-bg border border-editor-border rounded text-[11px] text-editor-text focus:outline-none focus:border-accent"
 
   return (
-    <div className={`flex flex-col border-t border-editor-border ${collapsed ? '' : 'flex-1'}`}>
+    <div className={`flex flex-col border-t border-editor-border overflow-hidden ${collapsed ? '' : 'flex-1 min-h-0'}`}>
       {/* Header */}
       <div className="flex items-center px-2 py-1.5 bg-editor-surface cursor-pointer select-none shrink-0" onClick={() => setCollapsed(!collapsed)}>
         <span className="shrink-0 mr-1">{collapsed ? <ChevronRight size={12} className="text-editor-muted"/> : <ChevronDown size={12} className="text-editor-muted"/>}</span>
@@ -70,6 +82,7 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
       {!collapsed && (
         <>
           {/* Character List */}
+          <div className="flex-1 min-h-0 flex flex-col">
           <div className="flex-1 overflow-y-auto px-2 space-y-0.5 min-h-0">
             {characters.length === 0 ? (
               <div className="text-center py-4 text-editor-muted">
@@ -129,24 +142,79 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
                 </div>
               </div>
 
+              {/* Scale slider */}
+              <div>
+                <label className="text-[8px] text-editor-muted block mb-0.5">立绘大小: {Math.round((sel.scale ?? 0.33)*100)}%</label>
+                <input type="range" min={10} max={100} value={Math.round((sel.scale ?? 0.33)*100)}
+                  onChange={e => upd(sel.id, { scale: Number(e.target.value)/100 })}
+                  className="w-full accent-accent"/>
+              </div>
+
+              {/* Live drag preview */}
+              {sel.portraitPath && (
+                <div>
+                  <label className="text-[8px] text-editor-muted block mb-0.5">拖拽调整位置 (offsetX: {(sel.offsetX??0).toFixed(0)}%, offsetY: {(sel.offsetY??0).toFixed(0)}%)</label>
+                  <div className="relative w-full aspect-video rounded bg-gradient-to-b from-[#1a1040] to-[#0a0a20] overflow-hidden border border-editor-border cursor-move"
+                    onMouseDown={e => {
+                      e.stopPropagation()
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      const sx = e.clientX; const sy = e.clientY
+                      const ox = sel.offsetX ?? 0; const oy = sel.offsetY ?? 0
+                      const move = (ev: MouseEvent) => {
+                        const dx = ((ev.clientX - sx) / rect.width) * 100
+                        const dy = ((ev.clientY - sy) / rect.height) * 100
+                        upd(sel.id, { offsetX: Math.max(-50, Math.min(50, ox + dx)), offsetY: Math.max(-50, Math.min(50, oy + dy)) })
+                      }
+                      const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up) }
+                      document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
+                    }}
+                  >
+                    {(() => {
+                      const scale = sel.scale ?? 0.33
+                      const ox = sel.offsetX ?? 0
+                      const oy = sel.offsetY ?? 0
+                      const pos = sel.position ?? 'center'
+                      // base left (% of container) + horizontal centering shift
+                      const baseLeft = pos === 'left' ? 0 : pos === 'right' ? 100 : 50
+                      const shift = pos === 'left' ? 0 : pos === 'right' ? -100 : -50
+                      return (
+                        <div className="absolute pointer-events-none"
+                          style={{ left: `calc(${baseLeft}% + ${ox}%)`, top: `calc(68% + ${oy}%)`, transform: `translateX(${shift}%)` }}>
+                          <img src={sel.portraitPath} className="object-contain" style={{ width: `${scale*100}%` }} alt=""/>
+                        </div>
+                      )
+                    })()}
+                    <span className="absolute bottom-0.5 right-1 text-[7px] text-white/30">拖拽定位（偏移为屏幕百分比）</span>
+                  </div>
+                </div>
+              )}
+
               {/* Expressions */}
               <div>
                 <div className="flex items-center justify-between mb-0.5">
                   <label className="text-[8px] text-editor-muted">表情 ({Object.keys(sel.expressions).length})</label>
-                  <button onClick={addExpr} className="text-[9px] text-accent hover:underline">+ 添加</button>
                 </div>
+                {/* Add expression bar */}
+                <div className="flex items-center gap-1 mb-1">
+                  <input type="text" value={newExprName} onChange={e => setNewExprName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addExpr() }}
+                    placeholder="表情名称，如 happy / angry..."
+                    className="flex-1 px-1.5 py-0.5 bg-editor-bg border border-editor-border rounded text-[9px] text-editor-text focus:outline-none focus:border-accent"/>
+                  <button onClick={addExpr} disabled={!newExprName.trim()} className="px-1.5 py-0.5 text-[9px] bg-accent/15 text-accent rounded hover:bg-accent/25 disabled:opacity-30">+ 添加</button>
+                </div>
+                <input ref={exprInputRef} type="file" accept="image/*" className="hidden" onChange={handleExprFile}/>
                 {Object.keys(sel.expressions).length === 0 ? (
-                  <p className="text-[8px] text-editor-muted">暂无自定义表情</p>
+                  <p className="text-[8px] text-editor-muted">暂无自定义表情，输入名称点击添加</p>
                 ) : (
                   <div className="space-y-1">
                     {Object.entries(sel.expressions).map(([name, path]) => (
                       <div key={name} className="flex items-center gap-1 bg-editor-bg rounded px-1.5 py-0.5">
-                        <span className="text-[9px] w-12 shrink-0">{name}</span>
+                        <span className="text-[9px] w-12 shrink-0 truncate">{name}</span>
                         <div className="flex-1 flex items-center gap-0.5">
-                          {path ? <img src={path} className="w-4 h-4 rounded object-cover"/> : <div className="w-4 h-4 rounded bg-editor-border"/>}
-                          <span className="text-[8px] text-editor-muted truncate">{path ? '✓' : '—'}</span>
+                          {path ? <img src={path} className="w-4 h-4 rounded object-cover" alt=""/> : <div className="w-4 h-4 rounded bg-editor-border"/>}
+                          <span className="text-[8px] text-editor-muted truncate">{path ? '已设置' : '未设置'}</span>
                         </div>
-                        <button onClick={() => setExprPortrait(name)} className="text-[8px] text-accent hover:underline shrink-0">设置</button>
+                        <button onClick={() => pickExprPortrait(name)} className="text-[8px] text-accent hover:underline shrink-0">设图</button>
                         <button onClick={() => delExpr(name)} className="text-[8px] text-red-400 hover:underline shrink-0">删</button>
                       </div>
                     ))}
@@ -174,6 +242,7 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
               </div>
             </div>
           )}
+          </div>
         </>
       )}
     </div>

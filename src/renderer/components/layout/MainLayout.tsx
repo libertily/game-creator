@@ -12,7 +12,7 @@ import AutoGenPanel from '../ai/AutoGenPanel'
 import {
   Gamepad2, MessageSquare, Palette, Image, Bot, Save, Play, Download,
   Settings, Sparkles, Wand2, Globe, Undo2, Redo2, LogOut, Loader2, X,
-  PanelRightClose, PanelRightOpen, Minimize2, Maximize2
+  PanelRightClose, PanelRightOpen, Minimize2, Maximize2, Package
 } from 'lucide-react'
 
 // Draggable panel hook — wider range for free resizing
@@ -95,6 +95,7 @@ const MainLayout: React.FC = () => {
   const [uiCollapsed, setUiCollapsed] = useState(false)
   const [aiCollapsed, setAiCollapsed] = useState(false)
   const [showExitDialog, setShowExitDialog] = useState(false)
+  const [exportMsg, setExportMsg] = useState('')
   const assetPanelVisible = panels.find(p => p.id === 'assets')?.visible ?? false
   const uiPanelVisible = panels.find(p => p.id === 'ui-editor')?.visible ?? false
 
@@ -124,12 +125,59 @@ const MainLayout: React.FC = () => {
     useEditorStore.getState().saveProject()
   }
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const json = useEditorStore.getState().getProjectJSON()
+    // try backend export → standalone runnable game ZIP
+    try {
+      let port = 18721
+      try { if (window.electronAPI) port = await window.electronAPI.getPythonPort() } catch { /* default */ }
+      const res = await fetch(`http://127.0.0.1:${port}/api/export`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: JSON.parse(json), outputType: 'zip' })
+      })
+      if (res.ok) {
+        const blob = await res.blob()
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob); a.download = `${project.meta.name.replace(/\s+/g, '_')}_game.zip`
+        a.click(); URL.revokeObjectURL(a.href)
+        return
+      }
+    } catch { /* backend unavailable → fall back to JSON */ }
+    // fallback: plain JSON export
     const blob = new Blob([json], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = `${project.meta.name.replace(/\s+/g, '_')}_export.json`
     a.click(); URL.revokeObjectURL(a.href)
+  }
+
+  // Export as a single-file EXE (art/music bundled, built via PyInstaller)
+  const [exeBusy, setExeBusy] = useState(false)
+  const handleExportExe = async () => {
+    const json = useEditorStore.getState().getProjectJSON()
+    setExeBusy(true)
+    setExportMsg(lang === 'zh' ? '⏳ 正在打包 EXE（美术/音乐资源已内嵌），可能需要 1-3 分钟...' : '⏳ Building EXE (assets embedded), may take 1-3 min...')
+    try {
+      let port = 18721
+      try { if (window.electronAPI) port = await window.electronAPI.getPythonPort() } catch { /* default */ }
+      const res = await fetch(`http://127.0.0.1:${port}/api/export`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: JSON.parse(json), outputType: 'exe' })
+      })
+      if (res.ok) {
+        const blob = await res.blob()
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob); a.download = `${project.meta.name.replace(/\s+/g, '_')}_exe.zip`
+        a.click(); URL.revokeObjectURL(a.href)
+        setExportMsg(lang === 'zh' ? '✅ EXE 已生成！解压后双击 .exe 即可独立运行（无需安装 Python）' : '✅ EXE ready! Unzip and double-click the .exe (no Python needed)')
+      } else {
+        const err = await res.text().catch(() => '')
+        setExportMsg(lang === 'zh' ? `❌ 打包失败：${err.slice(0, 200)}` : `❌ Failed: ${err.slice(0, 200)}`)
+      }
+    } catch (e: any) {
+      setExportMsg(lang === 'zh' ? `❌ 后端未启动或打包出错：${e?.message || e}` : `❌ Backend error: ${e?.message || e}`)
+    }
+    setExeBusy(false)
+    setTimeout(() => setExportMsg(''), 12000)
   }
 
   const handlePreview = async () => {
@@ -183,6 +231,9 @@ const MainLayout: React.FC = () => {
           <button className="btn-icon flex items-center gap-0.5" onClick={() => setLanguage(lang === 'zh' ? 'en' : 'zh')}><Globe size={16} /><span className="text-[9px]">{lang === 'zh' ? '中' : 'EN'}</span></button>
           <button className="btn-icon" onClick={handleSave} title={t.project.save}><Save size={16} /></button>
           <button className="btn-icon" onClick={handleExport} title={t.project.export}><Download size={16} /></button>
+          <button className="btn-icon text-accent-alt hover:text-accent-alt hover:bg-accent-alt/15" onClick={handleExportExe} disabled={exeBusy} title={lang === 'zh' ? '导出为 EXE（单文件独立运行，含美术/音乐）' : 'Export as EXE (standalone, assets included)'}>
+            {exeBusy ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} className={exeBusy ? 'opacity-30' : ''} />}
+          </button>
           <div className="w-px h-4 bg-editor-border mx-1" />
           <button className="btn-icon text-accent-alt hover:text-accent-alt hover:bg-accent-alt/15" onClick={handlePreview} title="F5">
             {previewStatus === 'launching' ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
@@ -198,7 +249,11 @@ const MainLayout: React.FC = () => {
           ))}
           <div className="w-8 h-px bg-editor-border my-2" />
           {[{ id: 'assets', icon: Image, title: lang==='zh'?'素材库':'Assets' }, { id: 'ui-editor', icon: Palette, title: lang==='zh'?'UI编辑器':'UI Editor' }, { id: 'ai', icon: Bot, title: lang==='zh'?'AI助手':'AI' }].map(tool => (
-            <button key={tool.id} onClick={() => tool.id === 'ai' ? toggleAIPanel() : togglePanel(tool.id)} title={tool.title}
+            <button key={tool.id} onClick={() => {
+              // opening one tool panel closes the others to avoid overlap
+              if (tool.id === 'ai') { toggleAIPanel(); useEditorStore.setState(s => ({ panels: s.panels.map(p => p.id !== 'ai' ? { ...p, visible: false } : p) })) }
+              else { togglePanel(tool.id); useEditorStore.setState(s => ({ aiPanelOpen: false })) }
+            }} title={tool.title}
               className={`sidebar-icon ${(tool.id === 'ai' && aiPanelOpen) || panels.find(p => p.id === tool.id && p.visible) ? 'sidebar-icon-active' : ''}`}><tool.icon size={20} /></button>
           ))}
         </aside>
@@ -285,6 +340,7 @@ const MainLayout: React.FC = () => {
         <span className="text-editor-muted/30">|</span>
         <span>{(project.galgame?.scenes.length||0)>0?`${lang==='zh'?'场景':'Scenes'}:${project.galgame?.scenes.length}`:`${lang==='zh'?'地图':'Maps'}:${project.rpg?.maps.length||0}`}</span>
         {isDirty && <span className="text-accent-alt">● {lang==='zh'?'未保存':'Unsaved'}</span>}
+        {exportMsg && <span className={`truncate ${exportMsg.startsWith('❌') ? 'text-red-400' : exportMsg.startsWith('✅') ? 'text-accent-alt' : 'text-accent'}`}>{exportMsg}</span>}
         <span className="flex-1" /><span className="text-editor-muted/50" title={lang==='zh'?'按F5启动Pygame预览':'Press F5 for Pygame preview'}>F5 {lang==='zh'?'试运行':'Preview'}</span>
       </footer>
     </div>

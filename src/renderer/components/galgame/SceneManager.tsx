@@ -15,6 +15,11 @@ interface Props {
   onScenesChange: (s: SceneDef[]) => void
   onStartSceneChange: (id: string) => void
   onSceneCharBind: (sceneId: string, charIds: string[]) => void
+  height?: number     // fixed height for split layout
+  flexHeight?: boolean // take remaining space (default)
+  collapsed?: boolean // controlled collapse (from split auto-collapse)
+  onCollapseChange?: (c: boolean) => void
+  onExpand?: () => void
 }
 
 // ── File Picker ────────────────────────────────────────────
@@ -89,11 +94,10 @@ const FilePicker: React.FC<{
 }
 
 // ── Scene Manager ──────────────────────────────────────────
-const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, branchNodes, characters, onScenesChange, onStartSceneChange, onSceneCharBind }) => {
+const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, branchNodes, characters, onScenesChange, onStartSceneChange, onSceneCharBind, height, flexHeight = true, collapsed = false, onCollapseChange, onExpand }) => {
   const t = useT()
   const [selId, setSelId] = useState<string | null>(null)
   const [showBind, setShowBind] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
   const sel = scenes.find(s => s.id === selId)
 
   const allNodes = [...dialogueNodes, ...branchNodes]
@@ -117,13 +121,21 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
   const inp = "w-full px-2 py-1 bg-editor-bg border border-editor-border rounded text-[11px] text-editor-text focus:outline-none focus:border-accent"
 
   return (
-    <div className={`flex flex-col ${collapsed ? '' : 'flex-1 min-h-0'}`}>
-      <div className="px-2 py-1.5 border-b border-editor-border flex items-center shrink-0 cursor-pointer select-none" onClick={() => setCollapsed(!collapsed)}>
+    <div className={`flex flex-col overflow-hidden ${collapsed ? 'shrink-0' : (height ? 'min-h-0' : 'flex-1 min-h-0')}`}
+      style={height ? { height } : collapsed ? { height: 30 } : undefined}>
+      <div className="px-2 py-1.5 border-b border-editor-border flex items-center shrink-0 cursor-pointer select-none" onClick={() => onCollapseChange && onCollapseChange(!collapsed)}>
         <span className="shrink-0 mr-1">{collapsed ? <ChevronRight size={12} className="text-editor-muted"/> : <ChevronDown size={12} className="text-editor-muted"/>}</span>
         <h3 className="text-[10px] font-semibold text-editor-muted uppercase tracking-wider truncate">{t.galgame.scenes} ({scenes.length})</h3>
+        {collapsed && (
+          <button onClick={ev => { ev.stopPropagation(); onExpand && onExpand() }}
+            className="ml-auto flex items-center gap-0.5 text-[9px] text-accent hover:underline px-1.5 py-0.5 rounded hover:bg-accent/10">
+            <ChevronDown size={10}/> 展开
+          </button>
+        )}
       </div>
       {!collapsed && (<>
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0">
         {scenes.length===0 ? (
           <div className="text-center py-8 text-editor-muted"><Image size={24} className="mx-auto mb-1 opacity-50"/><p className="text-[11px]">{t.galgame.noScenes}</p><button onClick={add} className="mt-1 text-[10px] text-accent hover:underline">{t.galgame.addScene}</button></div>
         ) : scenes.map(s => {
@@ -166,7 +178,7 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
         </button>
       </div>
       {sel && (
-        <div className="border-t border-editor-border p-3 space-y-2 overflow-y-auto shrink-0" style={{ maxHeight: 200 }}>
+        <div className="border-t border-editor-border p-3 space-y-2 overflow-y-auto shrink-0" style={{ maxHeight: '55%' }}>
           <h4 className="text-[10px] font-semibold text-editor-muted uppercase tracking-wider">{t.rpg.properties}</h4>
 
           <div><label className="text-[9px] text-editor-muted block mb-0.5">{t.rpg.name}</label><input type="text" value={sel.name} onChange={e=>upd(sel.id,{name:e.target.value})} className={inp}/></div>
@@ -255,6 +267,7 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
           </div>
         </div>
       )}
+      </div>
       </>)}
     </div>
   )

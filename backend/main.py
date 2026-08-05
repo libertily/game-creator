@@ -101,7 +101,38 @@ async def start_preview(project: GameProjectModel):
 
 @app.post("/api/export")
 async def export_project(request: ExportRequest):
-    return {"status": "queued", "projectName": request.project.meta.name, "outputType": request.outputType}
+    try:
+        # ensure project dict is serializable
+        data = request.project.model_dump()
+        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in data["meta"]["name"]) or "game"
+        tmp_dir = tempfile.mkdtemp(prefix="gcexport_")
+
+        if request.outputType == "exe":
+            from export.source_exporter import export_as_exe
+            zip_path = os.path.join(tmp_dir, f"{safe_name}_exe.zip")
+            res = export_as_exe(data, output_path=zip_path)
+            if res.get("status") != "ok" or not os.path.exists(zip_path):
+                raise HTTPException(status_code=500, detail=res.get("message", "EXE export failed"))
+            from fastapi.responses import FileResponse
+            return FileResponse(zip_path, media_type="application/zip", filename=f"{safe_name}_exe.zip")
+
+        from export.source_exporter import export_as_source
+        zip_path = os.path.join(tmp_dir, f"{safe_name}_game.zip")
+        out = export_as_source(data, output_path=zip_path)
+        if not out or not os.path.exists(out):
+            raise HTTPException(status_code=500, detail="Export failed")
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            out,
+            media_type="application/zip",
+            filename=f"{safe_name}_game.zip"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Export error: {e}")
 
 # ── AI ─────────────────────────────────────────────────────
 

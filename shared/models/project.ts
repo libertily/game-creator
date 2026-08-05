@@ -72,13 +72,14 @@ export interface DialogueNode {
   id: string
   speakerName: string
   speakerPortraitId: string
-  portraitExpression: string   // e.g. 'neutral', 'happy', 'sad'
+  portraitExpression: string   // e.g. 'neutral', 'happy', 'sad' or custom expression name
   text: string
   nextNodeId: string | null
   effects: string[]             // e.g. ['fadeIn', 'shake']
   sceneId?: string              // bound scene
   changeSceneId?: string        // switch to this scene after this dialogue
   transitionEffect?: string     // transition when changing scene (overrides scene default)
+  displayCharacterId?: string   // character shown on screen (independent of speaker)
 }
 
 export interface BranchNode {
@@ -112,6 +113,9 @@ export interface CharacterDef {
   portraitPath: string               // default portrait (data URL or path)
   expressions: Record<string, string> // expression name → portrait path
   position?: 'left' | 'center' | 'right'  // screen position
+  scale?: number                     // portrait display scale (0.1-1.0), default 0.33
+  offsetX?: number                   // fine position offset (% of screen width, -50..50)
+  offsetY?: number                   // fine position offset (% of screen height, -50..50)
 }
 
 export interface GalgameData {

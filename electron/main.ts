@@ -22,45 +22,45 @@ async function ensurePythonDeps(backendPath: string): Promise<boolean> {
 
   // Check if core packages are installed
   try {
-    execSync('python -c "import fastapi, uvicorn, pydantic, pygame"', { stdio: 'pipe', timeout: 15000 })
-    return true
+    execSync('python -c "import fastapi, uvicorn, pydantic, pygame, PyInstaller"', { stdio: 'pipe', timeout: 15000 })
+    return true // all good
   } catch {
-    console.log('[Setup] Missing Python packages. Auto-installing...')
+    // deps missing — fall through to prompt
   }
 
-  // Ask user before installing
-  if (mainWindow) {
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: 'question',
-      title: '安装依赖',
-      message: '检测到缺少必要的 Python 包（FastAPI, Pygame 等）。是否自动安装？',
-      detail: '将运行: pip install -r requirements.txt\n\n约需 1-2 分钟，需要网络连接。',
-      buttons: ['自动安装', '跳过（部分功能不可用）'],
-      defaultId: 0
-    })
-    if (response === 1) return false
+  // Ask user: install or quit?
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    title: '缺少依赖 — 游戏创作器',
+    message: '检测到缺少必要的 Python 包。\n\n需要安装: FastAPI, Pygame-CE, Uvicorn, PyInstaller 等\n约需 2-3 分钟，需网络连接。',
+    detail: '点击"安装依赖"将自动运行 pip install。\n点击"退出"将关闭程序。',
+    buttons: ['安装依赖', '退出'],
+    defaultId: 0,
+    cancelId: 1,
+  })
+
+  if (response === 1) {
+    // User chose to quit
+    app.quit()
+    return false
   }
 
   // Run pip install
-  const reqFile = path.join(backendPath, 'requirements.txt')
   try {
-    // Try pip install
-    execSync(`python -m pip install fastapi uvicorn pydantic pygame-ce pillow openai python-multipart aiofiles pyinstaller --quiet`, {
-      stdio: 'pipe', timeout: 120000, windowsHide: true
-    })
-    console.log('[Setup] Packages installed successfully')
+    execSync(
+      'python -m pip install fastapi uvicorn pydantic pygame-ce pillow pyinstaller --quiet',
+      { stdio: 'pipe', timeout: 240000, windowsHide: true }
+    )
     return true
   } catch (e) {
-    console.error('[Setup] Failed to install packages:', e)
-    if (mainWindow) {
-      dialog.showMessageBox(mainWindow, {
-        type: 'warning',
-        title: '安装提示',
-        message: '自动安装未完全成功。请手动运行:',
-        detail: 'pip install pygame-ce fastapi uvicorn pydantic pillow\n\n或运行 setup.bat',
-        buttons: ['确定']
-      })
-    }
+    dialog.showMessageBox({
+      type: 'error',
+      title: '安装失败',
+      message: '自动安装未成功。请检查网络连接后手动运行:',
+      detail: 'pip install pygame-ce fastapi uvicorn pydantic pillow pyinstaller\n\n或双击 setup.bat',
+      buttons: ['退出']
+    })
+    app.quit()
     return false
   }
 }
@@ -139,6 +139,8 @@ ipcMain.handle('dialog:importAssets', async () => {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
+  const depsOk = await ensurePythonDeps(getBackendPath())
+  if (!depsOk) return // user chose to quit
   await startPythonBackend()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

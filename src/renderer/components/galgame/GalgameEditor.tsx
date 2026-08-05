@@ -18,12 +18,45 @@ function usePanelResize(initial: number) {
   return { w, onDown: (e: React.MouseEvent) => { dragging.current = true; sx.current = e.clientX; sw.current = w; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none' } }
 }
 
+// vertical split hook for scene↔character panels
+// - dragging up too far auto-collapses the scene panel (collapsed=true)
+// - dragging back down (or the expand button) restores it
+function useVSplit(initial: number) {
+  const [h, setH] = useState(initial)
+  const [collapsed, setCollapsed] = useState(false)
+  const dragging = useRef(false); const sy = useRef(0); const sh = useRef(0)
+  useEffect(() => {
+    const mv = (e: MouseEvent) => {
+      if (!dragging.current) return
+      const nh = sh.current + (e.clientY - sy.current)
+      if (collapsed) {
+        // dragged back down far enough → restore the scene panel
+        if (nh > 150) { setCollapsed(false); setH(Math.max(180, Math.min(500, nh))) }
+      } else if (nh < 110) {
+        // dragged up too far → auto-collapse to prevent overlap
+        setCollapsed(true)
+      } else {
+        setH(Math.max(110, Math.min(500, nh)))
+      }
+    }
+    const up = () => { dragging.current = false; document.body.style.cursor = ''; document.body.style.userSelect = '' }
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up)
+    return () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up) }
+  }, [collapsed])
+  return {
+    h, collapsed, setCollapsed,
+    expand: () => { setCollapsed(false); setH(320) },
+    onDown: (e: React.MouseEvent) => { dragging.current = true; sy.current = e.clientY; sh.current = collapsed ? 220 : h; document.body.style.cursor = 'row-resize'; document.body.style.userSelect = 'none' }
+  }
+}
+
 const GalgameEditor: React.FC = () => {
   const t = useT()
   const project = useEditorStore(s => s.project)
   const setProjectData = useEditorStore(s => s.setProjectData)
   const [panelHidden, setPanelHidden] = useState(false)
   const panelW = usePanelResize(224)
+  const sceneH = useVSplit(300)
 
   if (!project?.galgame) {
     return (
@@ -86,7 +119,7 @@ const GalgameEditor: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="bg-editor-surface border-l border-editor-border shrink-0 flex flex-col relative" style={{ width: panelW.w }}>
+        <div className="bg-editor-surface border-l border-editor-border shrink-0 flex flex-col relative overflow-hidden" style={{ width: panelW.w }}>
           <div className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-accent/50 z-10 transition-colors" onMouseDown={panelW.onDown} />
           <button onClick={() => setPanelHidden(true)}
             className="absolute right-1 top-0.5 w-5 h-5 rounded bg-editor-bg border border-editor-border flex items-center justify-center text-editor-muted hover:text-editor-text hover:border-accent/40 z-20"
@@ -97,7 +130,17 @@ const GalgameEditor: React.FC = () => {
             dialogueNodes={gd.dialogueNodes} branchNodes={gd.branchNodes} characters={gd.characters || []}
             onScenesChange={(s) => updateStore({ scenes: s })}
             onStartSceneChange={(id) => updateStore({ startSceneId: id })}
-            onSceneCharBind={handleSceneCharBind} />
+            onSceneCharBind={handleSceneCharBind}
+            height={sceneH.collapsed ? undefined : sceneH.h}
+            collapsed={sceneH.collapsed}
+            onCollapseChange={sceneH.setCollapsed}
+            onExpand={sceneH.expand}
+            flexHeight={false} />
+          {/* Vertical drag handle between scenes and characters */}
+          <div className="h-2 shrink-0 cursor-row-resize hover:bg-accent/40 transition-colors flex items-center justify-center border-t border-editor-border bg-editor-surface"
+            onMouseDown={sceneH.onDown} title="拖拽调整高度">
+            <div className="w-8 h-0.5 rounded bg-editor-border"/>
+          </div>
           <CharacterManager characters={gd.characters || []} scenes={gd.scenes}
             onCharactersChange={(c) => updateStore({ characters: c })}
             onSceneCharBind={handleSceneCharBind} />

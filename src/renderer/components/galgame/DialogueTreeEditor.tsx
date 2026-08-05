@@ -112,6 +112,7 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
   const [propsCollapsed, setPropsCollapsed] = useState(false)
   const sd = dialogueNodes.find(n => n.id === selId)
   const sb = branchNodes.find(n => n.id === selId)
+  const effectiveScene = scenes.find(s => s.id === getEffectiveSceneId(selId || ''))
   const updD = (id: string, p: Partial<DialogueNode>) => onNodesChange(dialogueNodes.map(n => n.id===id?{...n,...p}:n), branchNodes)
   const updB = (id: string, p: Partial<BranchNode>) => onNodesChange(dialogueNodes, branchNodes.map(n => n.id===id?{...n,...p}:n))
   const addD = () => { const id = `d-${Date.now()}`; onNodesChange([...dialogueNodes, { id, speakerName: '', speakerPortraitId: '', portraitExpression: 'neutral', text: '', nextNodeId: null, effects: [] }], branchNodes); setSelId(id) }
@@ -174,8 +175,53 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
                   {characters.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
+
+              {/* Display character (independent of speaker) */}
+              <div className="p-2 bg-editor-bg rounded border border-editor-border/50 space-y-1.5">
+                <div className="flex items-center gap-1"><MessageCircle size={12} className="text-accent-alt"/><span className="text-[10px] font-semibold text-editor-muted uppercase">显示角色</span></div>
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-14 rounded bg-editor-bg border border-editor-border flex items-center justify-center overflow-hidden shrink-0">
+                    {(() => {
+                      const ch = characters.find(c => c.id === sd.displayCharacterId)
+                      const exprPath = ch?.expressions?.[sd.portraitExpression]
+                      const src = exprPath || ch?.portraitPath || ''
+                      return src ? <img src={src} className="w-full h-full object-cover" alt=""/> : <span className="text-editor-muted">无</span>
+                    })()}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap gap-0.5">
+                      <button onClick={()=>updD(sd.id,{displayCharacterId:undefined})} className={`text-[8px] px-1.5 py-0.5 rounded border ${!sd.displayCharacterId?'bg-accent/15 border-accent/30 text-accent':'border-editor-border text-editor-muted'}`}>无</button>
+                      {characters.map(c => {
+                        const isSel = sd.displayCharacterId === c.id
+                        const sceneChar = effectiveScene ? (effectiveScene.characterIds||[]).includes(c.id) : false
+                        return (
+                          <button key={c.id} onClick={()=>updD(sd.id,{displayCharacterId:c.id})}
+                            className={`text-[8px] px-1.5 py-0.5 rounded border flex items-center gap-1 ${isSel?'bg-accent/15 border-accent/30 text-accent':sceneChar?'border-accent-alt/40 text-accent-alt hover:border-accent-alt':'border-editor-border text-editor-muted hover:border-accent/30'}`}>
+                            {c.portraitPath ? <img src={c.portraitPath} className="w-3 h-3 rounded object-cover" alt=""/> : <MessageCircle size={8}/>}
+                            {c.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="text-[7px] text-editor-muted mt-0.5">选择当前屏幕上显示的角色（独立于说话人）</p>
+                  </div>
+                </div>
+
+                {/* Expression bound to display character's custom expressions */}
+                <div>
+                  <label className="text-[8px] text-editor-muted block mb-0.5">表情</label>
+                  <select value={sd.portraitExpression} onChange={e=>updD(sd.id,{portraitExpression:e.target.value})} className={inp}>
+                    <option value="">— 默认 —</option>
+                    {(() => {
+                      const ch = characters.find(c => c.id === sd.displayCharacterId)
+                      const exprs = Object.keys(ch?.expressions||{})
+                      if (exprs.length === 0) return ['neutral','happy','sad','angry','surprised','blush'].map(x=><option key={x} value={x}>{t.common[x as keyof typeof t.common]||x}</option>)
+                      return exprs.map(x=><option key={x} value={x}>{x}</option>)
+                    })()}
+                  </select>
+                </div>
+              </div>
               <div><label className="text-[9px] text-editor-muted block mb-0.5">{t.galgame.text}</label><textarea value={sd.text} onChange={e=>updD(sd.id,{text:e.target.value})} rows={4} className={`${inp} resize-none`}/></div>
-              <div><label className="text-[9px] text-editor-muted block mb-0.5">{t.galgame.expression}</label><select value={sd.portraitExpression} onChange={e=>updD(sd.id,{portraitExpression:e.target.value})} className={inp}>{['neutral','happy','sad','angry','surprised','blush'].map(x=><option key={x} value={x}>{t.common[x as keyof typeof t.common]}</option>)}</select></div>
               <div><label className="text-[9px] text-editor-muted block mb-0.5">{t.galgame.nextNode}</label><input type="text" value={sd.nextNodeId||''} onChange={e=>updD(sd.id,{nextNodeId:e.target.value||null})} className={inp}/></div>
               {/* Scene Binding */}
               <div className="p-2 bg-editor-bg rounded border border-editor-border/50 space-y-2">
