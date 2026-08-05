@@ -3,12 +3,14 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { existsSync } from 'fs'
+import net from 'net'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 let mainWindow: BrowserWindow | null = null
 let pythonProcess: ChildProcess | null = null
+let quitting = false
 const PYTHON_PORT = 18721
 
 function getBackendPath(): string {
@@ -65,6 +67,30 @@ async function ensurePythonDeps(backendPath: string): Promise<boolean> {
   }
 }
 
+function isPortOpen(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = net.connect({ port, host: '127.0.0.1' })
+    sock.once('connect', () => { sock.destroy(); resolve(true) })
+    sock.once('error', () => resolve(false))
+  })
+}
+
+function killStaleOnPort(port: number): void {
+  try {
+    const out = execSync(`netstat -ano | findstr :${port} | findstr LISTENING`, { encoding: 'utf8' })
+    const pids = new Set<string>()
+    for (const line of out.split(/\r?\n/)) {
+      const parts = line.trim().split(/\s+/)
+      const pid = parts[parts.length - 1]
+      if (pid && /^\d+$/.test(pid)) pids.add(pid)
+    }
+    for (const pid of pids) {
+      try { process.kill(Number(pid)); console.log(`[Python] Killed stale process ${pid} on port ${port}`) }
+      catch { /* ignore */ }
+    }
+  } catch { /* nothing listening */ }
+}
+
 async function startPythonBackend(): Promise<void> {
   const backendPath = getBackendPath()
   const mainPy = path.join(backendPath, 'main.py')
@@ -77,22 +103,42 @@ async function startPythonBackend(): Promise<void> {
   // Auto-install deps on first launch
   await ensurePythonDeps(backendPath)
 
-  return new Promise((resolve) => {
+  // A backend is already running and reachable → reuse it (prevents duplicate / port conflict)
+  if (await isPortOpen(PYTHON_PORT)) {
+    console.log(`[Python] Backend already running on :${PYTHON_PORT} — reusing`)
+    return
+  }
+  // Otherwise free the port from any stale/zombie process left by a previous run, then start fresh
+  killStaleOnPort(PYTHON_PORT)
+  await new Promise<void>((r) => setTimeout(r, 400))
+
+  return new Promise<void>((resolve) => {
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3'
     pythonProcess = spawn(pythonCmd, [mainPy, '--port', String(PYTHON_PORT)], {
-      cwd: backendPath, env: { ...process.env, PYTHONUNBUFFERED: '1' }
+      cwd: backendPath, env: { ...process.env, PYTHONUNBUFFERED: '1' }, windowsHide: true
     })
 
     let started = false
     pythonProcess.stdout?.on('data', (data: Buffer) => {
       const msg = data.toString().trim()
-      console.log(`[Python] ${msg}`)
+      if (msg) console.log(`[Python] ${msg}`)
       if (!started && msg.includes('Uvicorn running')) { started = true; resolve() }
     })
-    pythonProcess.stderr?.on('data', (data: Buffer) => { console.error(`[Python:err] ${data.toString().trim()}`) })
-    pythonProcess.on('error', (err) => { console.error('[Python] Failed:', err.message); resolve() })
-    pythonProcess.on('exit', (code) => { console.log(`[Python] Exited ${code}`); pythonProcess = null })
-    setTimeout(() => { if (!started) resolve() }, 5000)
+    pythonProcess.stderr?.on('data', (data: Buffer) => {
+      const msg = data.toString().trim()
+      if (msg) console.error(`[Python:err] ${msg}`)
+    })
+    pythonProcess.on('error', (err) => { console.error('[Python] Failed:', err.message); pythonProcess = null; resolve() })
+    pythonProcess.on('exit', (code) => {
+      console.log(`[Python] Exited ${code}`)
+      pythonProcess = null
+      if (!started) resolve()
+      // Watchdog: if it crashed / failed unexpectedly (and we're not quitting), restart it
+      if (!quitting) {
+        setTimeout(() => { if (!quitting) startPythonBackend().catch(() => {}) }, 2000)
+      }
+    })
+    setTimeout(() => { if (!started) resolve() }, 8000)
   })
 }
 
@@ -146,5 +192,5 @@ app.whenReady().then(async () => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
 
-app.on('window-all-closed', () => { stopPythonBackend(); if (process.platform !== 'darwin') app.quit() })
-app.on('before-quit', () => { stopPythonBackend() })
+app.on('window-all-closed', () => { quitting = true; stopPythonBackend(); if (process.platform !== 'darwin') app.quit() })
+app.on('before-quit', () => { quitting = true; stopPythonBackend() })
