@@ -40,7 +40,7 @@ def get_font(size: int):
 class SceneState: id: str; background: Optional[pygame.Surface] = None; character_ids: list = field(default_factory=list)
 
 @dataclass
-class DialogueNode: id: str; speaker: str; text: str; next_node_id: Optional[str] = None; change_scene_id: str = ""; display_character_id: str = ""; portrait_expression: str = ""
+class DialogueNode: id: str; speaker: str; text: str; next_node_id: Optional[str] = None; change_scene_id: str = ""; display_character_id: str = ""; portrait_expression: str = ""; display_character_ids: list = field(default_factory=list); display_character_expressions: dict = field(default_factory=dict)
 
 @dataclass
 class BranchNode: id: str; prompt: str; choices: list = field(default_factory=list)
@@ -104,7 +104,9 @@ class GalgameEngine:
                 next_node_id=dn.get("nextNodeId"),
                 change_scene_id=dn.get("changeSceneId", ""),
                 display_character_id=dn.get("displayCharacterId", ""),
-                portrait_expression=dn.get("portraitExpression", ""))
+                portrait_expression=dn.get("portraitExpression", ""),
+                display_character_ids=list(dn.get("displayCharacterIds", []) or []),
+                display_character_expressions=dict(dn.get("displayCharacterExpressions", {}) or {}))
         for bn in gal.get("branchNodes", []):
             self.branch_nodes[bn["id"]] = BranchNode(id=bn["id"], prompt=bn.get("prompt",""), choices=bn.get("choices",[]))
         # load characters with portrait + position + scale
@@ -165,11 +167,19 @@ class GalgameEngine:
             if dn.change_scene_id and dn.change_scene_id in self.scenes:
                 self.current_scene_id = dn.change_scene_id
                 self._load_scene_chars(self.current_scene_id)
-            # display character takes priority over speaker; other scene chars remain
-            disp_id = dn.display_character_id
-            if disp_id and disp_id in self.characters:
-                self._set_display_char(disp_id, dn.portrait_expression)
+            # explicit cast: exactly the selected display characters (multiple allowed)
+            if dn.display_character_ids:
+                self.onstage = []
+                expr_map = dn.display_character_expressions or {}
+                for cid in dn.display_character_ids:
+                    if cid in self.characters:
+                        self._set_display_char(cid, expr_map.get(cid, ""))
+            elif dn.display_character_id and dn.display_character_id in self.characters:
+                # legacy single display character
+                self.onstage = []
+                self._set_display_char(dn.display_character_id, dn.portrait_expression)
             else:
+                # no explicit cast → keep current onstage, ensure the speaker is present
                 self._set_display_char(self._resolve_char_id(dn.speaker))
         elif nid in self.branch_nodes:
             self.showing_choices = True; self.current_text = self.branch_nodes[nid].prompt

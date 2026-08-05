@@ -176,26 +176,38 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
                 </select>
               </div>
 
-              {/* Display character (independent of speaker) */}
+              {/* Display characters (independent of speaker, multiple allowed) */}
               <div className="p-2 bg-editor-bg rounded border border-editor-border/50 space-y-1.5">
                 <div className="flex items-center gap-1"><MessageCircle size={12} className="text-accent-alt"/><span className="text-[10px] font-semibold text-editor-muted uppercase">显示角色</span></div>
                 <div className="flex items-center gap-2">
-                  <div className="w-10 h-14 rounded bg-editor-bg border border-editor-border flex items-center justify-center overflow-hidden shrink-0">
+                  {/* Preview: stacked avatars of all displayed characters */}
+                  <div className="w-10 h-14 rounded bg-editor-bg border border-editor-border flex items-center justify-center overflow-hidden shrink-0 relative">
                     {(() => {
-                      const ch = characters.find(c => c.id === sd.displayCharacterId)
-                      const exprPath = ch?.expressions?.[sd.portraitExpression]
-                      const src = exprPath || ch?.portraitPath || ''
-                      return src ? <img src={src} className="w-full h-full object-cover" alt=""/> : <span className="text-editor-muted">无</span>
+                      const ids = sd.displayCharacterIds || []
+                      const shown = ids.slice(0, 3)
+                      if (shown.length === 0) return <span className="text-editor-muted">无</span>
+                      return shown.map((cid, i) => {
+                        const ch = characters.find(c => c.id === cid)
+                        const src = ch?.expressions?.[(sd.displayCharacterExpressions||{})[cid]] || ch?.portraitPath || ''
+                        if (!src) return null
+                        return <img key={cid} src={src} className="absolute object-cover rounded-sm border border-editor-border/40" style={{ width: '55%', height: '80%', left: `${i*22}%`, top: '10%' }} alt=""/>
+                      })
                     })()}
                   </div>
                   <div className="flex-1">
                     <div className="flex flex-wrap gap-0.5">
-                      <button onClick={()=>updD(sd.id,{displayCharacterId:undefined})} className={`text-[8px] px-1.5 py-0.5 rounded border ${!sd.displayCharacterId?'bg-accent/15 border-accent/30 text-accent':'border-editor-border text-editor-muted'}`}>无</button>
+                      <button onClick={()=>updD(sd.id,{displayCharacterIds:undefined, displayCharacterExpressions:undefined})} className={`text-[8px] px-1.5 py-0.5 rounded border ${!sd.displayCharacterIds?.length?'bg-accent/15 border-accent/30 text-accent':'border-editor-border text-editor-muted'}`}>无</button>
                       {characters.map(c => {
-                        const isSel = sd.displayCharacterId === c.id
+                        const isSel = (sd.displayCharacterIds||[]).includes(c.id)
                         const sceneChar = effectiveScene ? (effectiveScene.characterIds||[]).includes(c.id) : false
                         return (
-                          <button key={c.id} onClick={()=>updD(sd.id,{displayCharacterId:c.id})}
+                          <button key={c.id} onClick={()=>{
+                            const cur = sd.displayCharacterIds || []
+                            const next = isSel ? cur.filter(id=>id!==c.id) : [...cur, c.id]
+                            const exprs = { ...(sd.displayCharacterExpressions||{}) }
+                            if (!isSel) delete exprs[c.id]
+                            updD(sd.id, { displayCharacterIds: next.length?next:undefined, displayCharacterExpressions: Object.keys(exprs).length?exprs:undefined })
+                          }}
                             className={`text-[8px] px-1.5 py-0.5 rounded border flex items-center gap-1 ${isSel?'bg-accent/15 border-accent/30 text-accent':sceneChar?'border-accent-alt/40 text-accent-alt hover:border-accent-alt':'border-editor-border text-editor-muted hover:border-accent/30'}`}>
                             {c.portraitPath ? <img src={c.portraitPath} className="w-3 h-3 rounded object-cover" alt=""/> : <MessageCircle size={8}/>}
                             {c.name}
@@ -203,23 +215,37 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
                         )
                       })}
                     </div>
-                    <p className="text-[7px] text-editor-muted mt-0.5">选择当前屏幕上显示的角色（独立于说话人）</p>
+                    <p className="text-[7px] text-editor-muted mt-0.5">可多选，屏幕上同时显示多个角色（独立于说话人）</p>
                   </div>
                 </div>
 
-                {/* Expression bound to display character's custom expressions */}
-                <div>
-                  <label className="text-[8px] text-editor-muted block mb-0.5">表情</label>
-                  <select value={sd.portraitExpression} onChange={e=>updD(sd.id,{portraitExpression:e.target.value})} className={inp}>
-                    <option value="">— 默认 —</option>
-                    {(() => {
-                      const ch = characters.find(c => c.id === sd.displayCharacterId)
-                      const exprs = Object.keys(ch?.expressions||{})
-                      if (exprs.length === 0) return ['neutral','happy','sad','angry','surprised','blush'].map(x=><option key={x} value={x}>{t.common[x as keyof typeof t.common]||x}</option>)
-                      return exprs.map(x=><option key={x} value={x}>{x}</option>)
-                    })()}
-                  </select>
-                </div>
+                {/* Per-character expression for each displayed character */}
+                {(sd.displayCharacterIds||[]).length > 0 && (
+                  <div className="space-y-1 pt-0.5 border-t border-editor-border/50">
+                    {(sd.displayCharacterIds||[]).map(cid => {
+                      const ch = characters.find(c => c.id === cid)
+                      if (!ch) return null
+                      const exprs = Object.keys(ch.expressions||{})
+                      const exprKey = (sd.displayCharacterExpressions||{})[cid] || ''
+                      return (
+                        <div key={cid} className="flex items-center gap-1.5">
+                          {ch.portraitPath ? <img src={ch.portraitPath} className="w-4 h-4 rounded object-cover shrink-0"/> : <MessageCircle size={10} className="shrink-0 text-editor-muted"/>}
+                          <span className="text-[8px] text-editor-text w-12 shrink-0 truncate">{ch.name}</span>
+                          <select value={exprKey} onChange={e=>{
+                            const exprs2 = { ...(sd.displayCharacterExpressions||{}) }
+                            if (e.target.value) exprs2[cid] = e.target.value; else delete exprs2[cid]
+                            updD(sd.id, { displayCharacterExpressions: Object.keys(exprs2).length?exprs2:undefined })
+                          }} className={inp}>
+                            <option value="">— 默认 —</option>
+                            {exprs.length === 0
+                              ? ['neutral','happy','sad','angry','surprised','blush'].map(x=><option key={x} value={x}>{t.common[x as keyof typeof t.common]||x}</option>)
+                              : exprs.map(x=><option key={x} value={x}>{x}</option>)}
+                          </select>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
               <div><label className="text-[9px] text-editor-muted block mb-0.5">{t.galgame.text}</label><textarea value={sd.text} onChange={e=>updD(sd.id,{text:e.target.value})} rows={4} className={`${inp} resize-none`}/></div>
               <div><label className="text-[9px] text-editor-muted block mb-0.5">{t.galgame.nextNode}</label><input type="text" value={sd.nextNodeId||''} onChange={e=>updD(sd.id,{nextNodeId:e.target.value||null})} className={inp}/></div>

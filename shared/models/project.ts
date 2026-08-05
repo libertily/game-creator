@@ -79,7 +79,8 @@ export interface DialogueNode {
   sceneId?: string              // bound scene
   changeSceneId?: string        // switch to this scene after this dialogue
   transitionEffect?: string     // transition when changing scene (overrides scene default)
-  displayCharacterId?: string   // character shown on screen (independent of speaker)
+  displayCharacterIds?: string[]            // characters shown on screen (independent of speaker) — multiple allowed
+  displayCharacterExpressions?: Record<string, string>  // per-char expression, keyed by character id
 }
 
 export interface BranchNode {
