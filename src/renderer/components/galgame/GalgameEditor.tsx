@@ -144,6 +144,7 @@ const GalgameEditor: React.FC = () => {
               onScenesChange={(s) => updateStore({ scenes: s })}
               onStartSceneChange={(id) => updateStore({ startSceneId: id })}
               onSceneCharBind={handleSceneCharBind}
+              onCharactersChange={(c) => updateStore({ characters: c })}
               height={rightView === 'both' ? (sceneH.collapsed ? undefined : sceneH.h) : undefined}
               collapsed={rightView === 'both' ? sceneH.collapsed : false}
               onCollapseChange={rightView === 'both' ? sceneH.setCollapsed : undefined}

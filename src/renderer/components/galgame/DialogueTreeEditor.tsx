@@ -180,18 +180,24 @@ const DialogueTreeEditor: React.FC<Props> = ({ dialogueNodes, branchNodes, start
               <div className="p-2 bg-editor-bg rounded border border-editor-border/50 space-y-1.5">
                 <div className="flex items-center gap-1"><MessageCircle size={12} className="text-accent-alt"/><span className="text-[10px] font-semibold text-editor-muted uppercase">显示角色</span></div>
                 <div className="flex items-center gap-2">
-                  {/* Preview: stacked avatars of all displayed characters */}
-                  <div className="w-10 h-14 rounded bg-editor-bg border border-editor-border flex items-center justify-center overflow-hidden shrink-0 relative">
+                  {/* Preview: non-overlapping avatars of displayed characters */}
+                  <div className="w-12 h-14 rounded bg-editor-bg border border-editor-border overflow-hidden shrink-0 relative">
                     {(() => {
                       const ids = sd.displayCharacterIds || []
-                      const shown = ids.slice(0, 3)
-                      if (shown.length === 0) return <span className="text-editor-muted">无</span>
-                      return shown.map((cid, i) => {
-                        const ch = characters.find(c => c.id === cid)
-                        const src = ch?.expressions?.[(sd.displayCharacterExpressions||{})[cid]] || ch?.portraitPath || ''
-                        if (!src) return null
-                        return <img key={cid} src={src} className="absolute object-cover rounded-sm border border-editor-border/40" style={{ width: '55%', height: '80%', left: `${i*22}%`, top: '10%' }} alt=""/>
-                      })
+                      if (ids.length === 0) return <span className="text-editor-muted text-[8px]">无</span>
+                      const shown = ids.slice(0, 2)
+                      return (
+                        <div className="flex items-end h-full gap-0.5 p-0.5">
+                          {shown.map((cid) => {
+                            const ch = characters.find(c => c.id === cid)
+                            const src = ch?.expressions?.[(sd.displayCharacterExpressions||{})[cid]] || ch?.portraitPath || ''
+                            return src
+                              ? <img key={cid} src={src} className="flex-1 h-full object-cover rounded-sm border border-editor-border/40" alt=""/>
+                              : <div key={cid} className="flex-1 h-full rounded-sm bg-editor-border/30"/>
+                          })}
+                          {ids.length > 2 && <span className="absolute bottom-0.5 right-0.5 text-[7px] bg-black/60 text-white rounded px-0.5 leading-tight">+{ids.length-2}</span>}
+                        </div>
+                      )
                     })()}
                   </div>
                   <div className="flex-1">

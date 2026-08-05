@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useT } from '../../i18n'
-import type { SceneDef, DialogueNode, BranchNode, CharacterDef, AssetRef } from '@shared/models/project'
-import { Image, Plus, Trash2, Music, Video, FolderOpen, Link2, Unlink, ChevronDown, ChevronRight, User, Library } from 'lucide-react'
+import type { SceneDef, DialogueNode, BranchNode, CharacterDef, AssetRef, CharacterImageConfig } from '@shared/models/project'
+import { Image, Plus, Trash2, Music, Video, FolderOpen, Link2, Unlink, ChevronDown, ChevronRight, User, Library, Eye } from 'lucide-react'
 import { useEditorStore } from '../../stores/editorStore'
+import ScenePreview from './ScenePreview'
 
 const PRESET_TRANSITIONS = ['none','fade','slideLeft','slideRight','zoomIn','zoomOut','dissolve']
 
@@ -15,6 +16,7 @@ interface Props {
   onScenesChange: (s: SceneDef[]) => void
   onStartSceneChange: (id: string) => void
   onSceneCharBind: (sceneId: string, charIds: string[]) => void
+  onCharactersChange?: (c: CharacterDef[]) => void
   height?: number     // fixed height for split layout
   flexHeight?: boolean // take remaining space (default)
   collapsed?: boolean // controlled collapse (from split auto-collapse)
@@ -94,10 +96,11 @@ const FilePicker: React.FC<{
 }
 
 // ── Scene Manager ──────────────────────────────────────────
-const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, branchNodes, characters, onScenesChange, onStartSceneChange, onSceneCharBind, height, flexHeight = true, collapsed = false, onCollapseChange, onExpand }) => {
+const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, branchNodes, characters, onScenesChange, onStartSceneChange, onSceneCharBind, onCharactersChange, height, flexHeight = true, collapsed = false, onCollapseChange, onExpand }) => {
   const t = useT()
   const [selId, setSelId] = useState<string | null>(null)
   const [showBind, setShowBind] = useState(false)
+  const [previewScene, setPreviewScene] = useState<SceneDef | null>(null)
   const sel = scenes.find(s => s.id === selId)
 
   const allNodes = [...dialogueNodes, ...branchNodes]
@@ -169,7 +172,8 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
                 </p>
               </div>
               {s.id===startSceneId&&<span className="text-[10px] text-accent-alt shrink-0">⭐</span>}
-              <button onClick={ev=>{ev.stopPropagation();del(s.id)}} className="p-0.5 rounded text-red-400 hover:bg-red-400/10"><Trash2 size={12}/></button>
+              <button onClick={ev=>{ev.stopPropagation(); setPreviewScene(s)}} className="p-0.5 rounded text-editor-muted hover:text-accent shrink-0" title="预览这一幕"><Eye size={12}/></button>
+              <button onClick={ev=>{ev.stopPropagation();del(s.id)}} className="p-0.5 rounded text-red-400 hover:bg-red-400/10 shrink-0"><Trash2 size={12}/></button>
             </div>
           )
         })}
@@ -275,6 +279,28 @@ const SceneManager: React.FC<Props> = ({ scenes, startSceneId, dialogueNodes, br
       )}
       </div>
       </>)}
+      {previewScene && (
+        <ScenePreview
+          scene={previewScene}
+          characters={characters}
+          onClose={() => setPreviewScene(null)}
+          onCharConfig={(charId, key, patch) => {
+            if (!onCharactersChange) return
+            onCharactersChange(characters.map(ch => {
+              if (ch.id !== charId) return ch
+              const legacy = { position: ch.position, scale: ch.scale, offsetX: ch.offsetX, offsetY: ch.offsetY }
+              const per = (ch.imageConfigs || {})[key] || {}
+              const cur = {
+                position: per.position ?? legacy.position ?? 'center',
+                scale: per.scale ?? legacy.scale ?? 0.33,
+                offsetX: per.offsetX ?? legacy.offsetX ?? 0,
+                offsetY: per.offsetY ?? legacy.offsetY ?? 0,
+              }
+              return { ...ch, imageConfigs: { ...(ch.imageConfigs || {}), [key]: { ...cur, ...patch } } }
+            }))
+          }}
+        />
+      )}
     </div>
   )
 }

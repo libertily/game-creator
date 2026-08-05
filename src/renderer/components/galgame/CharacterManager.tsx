@@ -219,7 +219,8 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
                         </div>
                         <div>
                           <label className="text-[8px] text-editor-muted block mb-0.5">拖拽调整位置 (X: {(cfg.offsetX||0).toFixed(0)}%, Y: {(cfg.offsetY||0).toFixed(0)}%)</label>
-                          <div className="relative w-full aspect-video rounded bg-gradient-to-b from-[#1a1040] to-[#0a0a20] overflow-hidden border border-editor-border cursor-move"
+                          {/* 4:3 stage matching the game (800x600); bottom anchor matches the dialogue-box gap (190/600 ≈ 31.7%) */}
+                          <div className="relative w-full aspect-[4/3] rounded bg-gradient-to-b from-[#1a1040] to-[#0a0a20] overflow-hidden border border-editor-border cursor-move"
                             onMouseDown={onPreviewDragStart}>
                             {(() => {
                               const scale = cfg.scale || 0.33
@@ -229,7 +230,7 @@ const CharacterManager: React.FC<Props> = ({ characters, scenes, onCharactersCha
                               const shift = pos === 'left' ? 0 : pos === 'right' ? -100 : -50
                               return (
                                 <div className="absolute pointer-events-none"
-                                  style={{ left: `calc(${baseLeft}% + ${ox}%)`, bottom: `calc(10% - ${oy}%)`, transform: `translateX(${shift}%)` }}>
+                                  style={{ left: `calc(${baseLeft}% + ${ox}%)`, bottom: `calc(31.7% - ${oy}%)`, transform: `translateX(${shift}%)` }}>
                                   <img src={path} className="object-contain" style={{ width: `${scale*100}%` }} alt=""/>
                                 </div>
                               )
